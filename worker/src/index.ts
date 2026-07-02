@@ -178,7 +178,7 @@ app.post('/auth/register/verify', async c => {
     return c.json({ verified: true, userId, displayName });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return c.json({ error: msg }, 500);
+    return c.json({ error: msg }, 400);
   }
 });
 
@@ -252,7 +252,7 @@ app.post('/auth/login/verify', async c => {
     return c.json({ verified: true, userId: cred.user_id, displayName: usr?.display_name ?? '' });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return c.json({ error: msg }, 500);
+    return c.json({ error: msg }, 400);
   }
 });
 
