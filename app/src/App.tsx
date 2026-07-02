@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import * as Api from './api';
-import {
-  Units, Variant, TMs, LiftKey,
-  SetDef, AccessoryDef, DayDef,
-  getDays, getLiftTM, getLiftName,
-  setWeight, roundWeight, epley1RM, tmFrom1RM,
-  progression, dayProgressionLift, calcPlates, BAR,
-} from './program';
+import { setWeight, roundWeight, epley1RM, tmFrom1RM, calcPlates, BAR } from './utils';
+import type { Units } from './utils';
+import { getProgram, PROGRAMS } from './programs';
+import type { ProgramDef, SetDef, AccessoryDef, DayDef } from './programs';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-interface Settings { units: Units; variant: Variant; tms: TMs }
-interface AppState  { settings: Settings | null; currentDayIndex: number }
+interface Settings {
+  programId: string;
+  units: Units;
+  variant: string;
+  tms: Record<string, number>;
+}
+interface AppState { settings: Settings | null; currentDayIndex: number }
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
@@ -53,9 +55,15 @@ function fmtW(w: number) {
 }
 
 const CACHE_KEY = 'lq_state_v1';
-const loadCache = (): AppState | null => {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null'); } catch { return null; }
-};
+
+function loadCache(): AppState | null {
+  try {
+    const s = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null') as AppState | null;
+    // Migrate: add programId if missing (pre-modular cache entries)
+    if (s?.settings && !s.settings.programId) s.settings.programId = 'nsuns';
+    return s;
+  } catch { return null; }
+}
 const saveCache = (s: AppState) => {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(s)); } catch {}
 };
@@ -148,23 +156,25 @@ function AuthScreen({ onAuth }: { onAuth: (u: Api.AuthUser) => void }) {
 
 // ── Setup screen ───────────────────────────────────────────────────────────────
 
-function SetupScreen({ user, onDone }: { user: Api.AuthUser; onDone: (s: Settings) => void }) {
+function SetupScreen({ user, program, onDone }: {
+  user: Api.AuthUser;
+  program: ProgramDef;
+  onDone: (s: Settings) => void;
+}) {
   const [units, setUnits] = useState<Units>('lbs');
-  const [variant, setVariant] = useState<Variant>('5-day');
-  const [tms, setTms] = useState<TMs>({ squat: 225, bench: 155, deadlift: 275, ohp: 105 });
+  const [variant, setVariant] = useState(program.defaultVariant);
+  const [tms, setTms] = useState<Record<string, number>>(() =>
+    Object.fromEntries(program.tmLifts.map(l => [l.key, l.defaultLbs]))
+  );
   const [eW, setEW] = useState('');
   const [eR, setER] = useState('');
-  const [eLift, setELift] = useState<keyof TMs | ''>('');
+  const [eLift, setELift] = useState('');
 
   const u = U_LABEL[units];
-  const LIFTS: { k: keyof TMs; label: string }[] = [
-    { k: 'squat', label: 'Squat' }, { k: 'bench', label: 'Bench' },
-    { k: 'deadlift', label: 'Deadlift' }, { k: 'ohp', label: 'OHP' },
-  ];
 
-  function setTM(k: keyof TMs, v: string) {
+  function setTM(key: string, v: string) {
     const n = parseFloat(v);
-    if (!isNaN(n) && n > 0) setTms(p => ({ ...p, [k]: roundWeight(n, units) }));
+    if (!isNaN(n) && n > 0) setTms(p => ({ ...p, [key]: roundWeight(n, units) }));
   }
 
   function applyEpley() {
@@ -181,7 +191,7 @@ function SetupScreen({ user, onDone }: { user: Api.AuthUser; onDone: (s: Setting
   return (
     <div className="screen setup-screen">
       <h1 className="setup-title">Welcome, {user.displayName}!</h1>
-      <p className="setup-sub">Configure your nSuns program.</p>
+      <p className="setup-sub">Configure your {program.name} program.</p>
 
       <section className="setup-card">
         <h3 className="card-title">Units</h3>
@@ -194,9 +204,10 @@ function SetupScreen({ user, onDone }: { user: Api.AuthUser; onDone: (s: Setting
       <section className="setup-card">
         <h3 className="card-title">Variant</h3>
         <div className="variant-grid">
-          {(['4-day','5-day','6-day-squat','6-day-dl'] as Variant[]).map(v => (
-            <button key={v} className={`variant-btn ${variant === v ? 'on' : ''}`} onClick={() => setVariant(v)}>
-              {v}
+          {program.variants.map(v => (
+            <button key={v.id} className={`variant-btn ${variant === v.id ? 'on' : ''}`}
+              onClick={() => setVariant(v.id)}>
+              {v.name}
             </button>
           ))}
         </div>
@@ -206,12 +217,12 @@ function SetupScreen({ user, onDone }: { user: Api.AuthUser; onDone: (s: Setting
         <h3 className="card-title">Training Maxes ({u})</h3>
         <p className="card-sub">Enter TM directly (= 90% × 1RM, rounded to 5{u}).</p>
         <div className="tms-grid">
-          {LIFTS.map(({ k, label }) => (
-            <label key={k} className="tm-row">
-              <span className="tm-label">{label}</span>
-              <input className="input input-num mono" type="number" value={tms[k]}
+          {program.tmLifts.map(l => (
+            <label key={l.key} className="tm-row">
+              <span className="tm-label">{l.label}</span>
+              <input className="input input-num mono" type="number" value={tms[l.key] ?? ''}
                 step={units === 'lbs' ? 5 : 2.5} min={0}
-                onChange={e => setTM(k, e.target.value)}/>
+                onChange={e => setTM(l.key, e.target.value)}/>
             </label>
           ))}
         </div>
@@ -220,9 +231,9 @@ function SetupScreen({ user, onDone }: { user: Api.AuthUser; onDone: (s: Setting
       <section className="setup-card epley-card">
         <h3 className="card-title">Epley 1RM → TM Calculator</h3>
         <div className="epley-row">
-          <select className="input input-sel" value={eLift} onChange={e => setELift(e.target.value as keyof TMs)}>
+          <select className="input input-sel" value={eLift} onChange={e => setELift(e.target.value)}>
             <option value="">Lift…</option>
-            {LIFTS.map(({ k, label }) => <option key={k} value={k}>{label}</option>)}
+            {program.tmLifts.map(l => <option key={l.key} value={l.key}>{l.label}</option>)}
           </select>
           <input className="input input-num mono" type="number" placeholder={`Wt (${u})`}
             value={eW} onChange={e => setEW(e.target.value)}/>
@@ -237,7 +248,8 @@ function SetupScreen({ user, onDone }: { user: Api.AuthUser; onDone: (s: Setting
         )}
       </section>
 
-      <button className="btn btn-primary btn-lg cta-start" onClick={() => onDone({ units, variant, tms })}>
+      <button className="btn btn-primary btn-lg cta-start"
+        onClick={() => onDone({ programId: program.id, units, variant, tms })}>
         Start Training
       </button>
     </div>
@@ -390,8 +402,8 @@ function SetRow({ idx, set, w, units, liftName, done, onDone, onWeight }: {
 
 // ── Settings sheet ─────────────────────────────────────────────────────────────
 
-function SettingsSheet({ user, settings, onSave, onClose, onLogout }: {
-  user: Api.AuthUser; settings: Settings;
+function SettingsSheet({ user, settings, program, onSave, onClose, onLogout }: {
+  user: Api.AuthUser; settings: Settings; program: ProgramDef;
   onSave: (s: Settings) => void;
   onClose: () => void;
   onLogout: () => void;
@@ -400,10 +412,6 @@ function SettingsSheet({ user, settings, onSave, onClose, onLogout }: {
   const [variant, setVariant] = useState(settings.variant);
   const [tms, setTms] = useState(settings.tms);
   const u = U_LABEL[units];
-  const LIFTS: { k: keyof TMs; label: string }[] = [
-    { k: 'squat', label: 'Squat' }, { k: 'bench', label: 'Bench' },
-    { k: 'deadlift', label: 'Deadlift' }, { k: 'ohp', label: 'OHP' },
-  ];
 
   return (
     <div className="overlay sheet-bg" onClick={onClose}>
@@ -427,8 +435,11 @@ function SettingsSheet({ user, settings, onSave, onClose, onLogout }: {
           <div className="s-row col">
             <span className="s-label">Variant</span>
             <div className="variant-grid">
-              {(['4-day','5-day','6-day-squat','6-day-dl'] as Variant[]).map(v => (
-                <button key={v} className={`variant-btn ${variant === v ? 'on' : ''}`} onClick={() => setVariant(v)}>{v}</button>
+              {program.variants.map(v => (
+                <button key={v.id} className={`variant-btn ${variant === v.id ? 'on' : ''}`}
+                  onClick={() => setVariant(v.id)}>
+                  {v.name}
+                </button>
               ))}
             </div>
           </div>
@@ -436,18 +447,24 @@ function SettingsSheet({ user, settings, onSave, onClose, onLogout }: {
           <div className="s-row col">
             <span className="s-label">Training Maxes ({u})</span>
             <div className="tms-grid">
-              {LIFTS.map(({ k, label }) => (
-                <label key={k} className="tm-row">
-                  <span className="tm-label">{label}</span>
-                  <input className="input input-num mono" type="number" value={tms[k]}
+              {program.tmLifts.map(l => (
+                <label key={l.key} className="tm-row">
+                  <span className="tm-label">{l.label}</span>
+                  <input className="input input-num mono" type="number" value={tms[l.key] ?? ''}
                     step={units === 'lbs' ? 5 : 2.5} min={0}
-                    onChange={e => { const n = parseFloat(e.target.value); if (!isNaN(n) && n > 0) setTms(p => ({ ...p, [k]: roundWeight(n, units) })); }}/>
+                    onChange={e => {
+                      const n = parseFloat(e.target.value);
+                      if (!isNaN(n) && n > 0) setTms(p => ({ ...p, [l.key]: roundWeight(n, units) }));
+                    }}/>
                 </label>
               ))}
             </div>
           </div>
 
-          <button className="btn btn-primary" onClick={() => { onSave({ units, variant, tms }); onClose(); }}>Save Changes</button>
+          <button className="btn btn-primary"
+            onClick={() => { onSave({ ...settings, units, variant, tms }); onClose(); }}>
+            Save Changes
+          </button>
           <button className="btn btn-ghost danger" onClick={onLogout}>Sign Out</button>
         </div>
       </div>
@@ -466,7 +483,8 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
   if (!settings) return null;
   const { units, variant, tms } = settings;
 
-  const days = getDays(variant);
+  const program = getProgram(settings.programId);
+  const days = program.getDays(variant);
   const dayIdx = appState.currentDayIndex % days.length;
   const day = days[dayIdx];
 
@@ -492,8 +510,8 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
     return () => clearTimeout(id);
   }, [rest]);
 
-  const t1TM = getLiftTM(day.t1.lift, tms, units);
-  const t2TM = getLiftTM(day.t2.lift, tms, units);
+  const t1TM = program.getLiftTM(day.t1.lift, tms, units);
+  const t2TM = program.getLiftTM(day.t2.lift, tms, units);
   const t1Sets = day.t1.sets;
   const t2Sets = day.t2.sets;
 
@@ -519,11 +537,11 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
   }
 
   function finish() {
-    const pLift = dayProgressionLift(day.id);
+    const pLift = program.dayProgressionLift(day.id);
     const newTMs = { ...tms };
     if (pLift && topIdx >= 0) {
       const reps = amrapReps[topKey] ?? 0;
-      newTMs[pLift] = tms[pLift] + progression(reps, units);
+      newTMs[pLift] = (tms[pLift] ?? 0) + program.progression(reps, units);
     }
     const next: AppState = {
       ...appState,
@@ -535,11 +553,17 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
   }
 
   function buildProgRows() {
-    const pLift = dayProgressionLift(day.id);
+    const pLift = program.dayProgressionLift(day.id);
     if (!pLift || topIdx < 0) return [];
     const reps = amrapReps[topKey] ?? 0;
-    const add = progression(reps, units);
-    return [{ lift: getLiftName(day.t1.lift), reps, add, newTM: tms[pLift] + add, u: U_LABEL[units] }];
+    const add = program.progression(reps, units);
+    return [{
+      lift: program.getLiftName(day.t1.lift),
+      reps,
+      add,
+      newTM: (tms[pLift] ?? 0) + add,
+      u: U_LABEL[units],
+    }];
   }
 
   function navTo(i: number) {
@@ -555,7 +579,7 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
     const tm = isT1 ? t1TM : t2TM;
     const lift = isT1 ? day.t1.lift : day.t2.lift;
     const w = setWeight(tm, set.pct, units);
-    return { label: `${getLiftName(lift)} ${fmtW(w)}${U_LABEL[units]}`, min: set.reps };
+    return { label: `${program.getLiftName(lift)} ${fmtW(w)}${U_LABEL[units]}`, min: set.reps };
   }
 
   const amrapInfo = getPendingAmrapInfo();
@@ -588,16 +612,16 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
         <section className="block">
           <div className="block-hd">
             <span className="tier-badge t1-badge">T1</span>
-            <span className="block-lift">{getLiftName(day.t1.lift)}</span>
+            <span className="block-lift">{program.getLiftName(day.t1.lift)}</span>
             <span className="block-tm mono">TM {t1TM}{u}</span>
           </div>
           {t1Sets.map((set, i) => {
             const key = `t1-${i}`;
             const w = setWeight(t1TM, set.pct, units);
             return <SetRow key={key} idx={i} set={set} w={w} units={units}
-              liftName={getLiftName(day.t1.lift)} done={done.has(key)}
+              liftName={program.getLiftName(day.t1.lift)} done={done.has(key)}
               onDone={() => completeSet(key, set, 180)}
-              onWeight={() => setPlate({ w, name: getLiftName(day.t1.lift) })}/>;
+              onWeight={() => setPlate({ w, name: program.getLiftName(day.t1.lift) })}/>;
           })}
         </section>
 
@@ -605,16 +629,16 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
         <section className="block">
           <div className="block-hd">
             <span className="tier-badge t2-badge">T2</span>
-            <span className="block-lift">{getLiftName(day.t2.lift)}</span>
+            <span className="block-lift">{program.getLiftName(day.t2.lift)}</span>
             <span className="block-tm mono">TM {t2TM}{u}</span>
           </div>
           {t2Sets.map((set, i) => {
             const key = `t2-${i}`;
             const w = setWeight(t2TM, set.pct, units);
             return <SetRow key={key} idx={i} set={set} w={w} units={units}
-              liftName={getLiftName(day.t2.lift)} done={done.has(key)}
+              liftName={program.getLiftName(day.t2.lift)} done={done.has(key)}
               onDone={() => completeSet(key, set, day.t2.restSec)}
-              onWeight={() => setPlate({ w, name: getLiftName(day.t2.lift) })}/>;
+              onWeight={() => setPlate({ w, name: program.getLiftName(day.t2.lift) })}/>;
           })}
         </section>
 
@@ -666,7 +690,7 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
       )}
 
       {showSettings && (
-        <SettingsSheet user={user} settings={settings}
+        <SettingsSheet user={user} settings={settings} program={program}
           onSave={s => onChange({ ...appState, settings: s })}
           onClose={() => setShowSettings(false)}
           onLogout={onLogout}/>
@@ -682,6 +706,9 @@ export default function App() {
   const [user, setUser] = useState<Api.AuthUser | null>(null);
   const [appState, setAppStateRaw] = useState<AppState | null>(null);
   const syncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Default program for new users: the first registered program
+  const defaultProgram = PROGRAMS[0];
 
   async function persist(next: AppState) {
     setAppStateRaw(next);
@@ -701,6 +728,8 @@ export default function App() {
       setUser(authed);
       let state = await Api.getState<AppState>().catch(() => null);
       if (!state && cached) state = cached;
+      // Migrate pre-modular state if needed
+      if (state?.settings && !state.settings.programId) state.settings.programId = defaultProgram.id;
       if (state) { setAppStateRaw(state); saveCache(state); }
       setView(!state?.settings ? 'setup' : 'workout');
     });
@@ -709,6 +738,7 @@ export default function App() {
   async function onAuth(u: Api.AuthUser) {
     setUser(u);
     let state = await Api.getState<AppState>().catch(() => null);
+    if (state?.settings && !state.settings.programId) state.settings.programId = defaultProgram.id;
     if (state) { setAppStateRaw(state); saveCache(state); }
     setView(!state?.settings ? 'setup' : 'workout');
   }
@@ -727,7 +757,7 @@ export default function App() {
 
   if (view === 'loading') return <LoadingScreen/>;
   if (view === 'auth')    return <AuthScreen onAuth={onAuth}/>;
-  if (view === 'setup')   return <SetupScreen user={user!} onDone={onSetup}/>;
+  if (view === 'setup')   return <SetupScreen user={user!} program={defaultProgram} onDone={onSetup}/>;
   return user && appState
     ? <WorkoutScreen user={user} appState={appState} onChange={persist} onLogout={onLogout}/>
     : <LoadingScreen/>;
