@@ -32,8 +32,17 @@ function rnd(len = 32): string {
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
 
+function resolveOrigin(reqOrigin: string | undefined, allowedRaw: string): string {
+  const allowed = allowedRaw.split(',').map(s => s.trim());
+  return (reqOrigin && allowed.includes(reqOrigin)) ? reqOrigin : allowed[0];
+}
+
+function expectedOrigins(raw: string): string[] {
+  return raw.split(',').map(s => s.trim());
+}
+
 app.options('*', c => {
-  const origin = c.env.ALLOWED_ORIGIN || 'https://app.lifting.quest';
+  const origin = resolveOrigin(c.req.header('Origin'), c.env.ALLOWED_ORIGIN || 'https://app.lifting.quest');
   return new Response(null, {
     status: 204,
     headers: {
@@ -48,7 +57,7 @@ app.options('*', c => {
 
 app.use('*', async (c, next) => {
   await next();
-  const origin = c.env.ALLOWED_ORIGIN || 'https://app.lifting.quest';
+  const origin = resolveOrigin(c.req.header('Origin'), c.env.ALLOWED_ORIGIN || 'https://app.lifting.quest');
   c.header('Access-Control-Allow-Origin', origin);
   c.header('Access-Control-Allow-Credentials', 'true');
   c.header('Vary', 'Origin');
@@ -124,7 +133,7 @@ app.post('/auth/register/verify', async c => {
     const verification = await verifyRegistrationResponse({
       response: response as Parameters<typeof verifyRegistrationResponse>[0]['response'],
       expectedChallenge: challenge,
-      expectedOrigin: c.env.EXPECTED_ORIGIN || 'https://app.lifting.quest',
+      expectedOrigin: expectedOrigins(c.env.EXPECTED_ORIGIN || 'https://app.lifting.quest'),
       expectedRPID: c.env.RP_ID || 'lifting.quest',
     });
 
@@ -215,7 +224,7 @@ app.post('/auth/login/verify', async c => {
     const verification = await verifyAuthenticationResponse({
       response: response as Parameters<typeof verifyAuthenticationResponse>[0]['response'],
       expectedChallenge: challenge,
-      expectedOrigin: c.env.EXPECTED_ORIGIN || 'https://app.lifting.quest',
+      expectedOrigin: expectedOrigins(c.env.EXPECTED_ORIGIN || 'https://app.lifting.quest'),
       expectedRPID: c.env.RP_ID || 'lifting.quest',
       credential: {
         id: cred.id,
