@@ -15,8 +15,8 @@ id = "ef12d5f72ceb416d9a213d650ebd2746"
 [vars]
 RP_NAME = "Lifting Quest"
 RP_ID = "lifting.quest"
-EXPECTED_ORIGIN = "https://app.lifting.quest,https://coralmckeon.github.io"
-ALLOWED_ORIGIN = "https://app.lifting.quest,https://coralmckeon.github.io"
+EXPECTED_ORIGIN = "https://lifting.quest,https://app.lifting.quest,https://coralmckeon.github.io"
+ALLOWED_ORIGIN = "https://lifting.quest,https://app.lifting.quest,https://coralmckeon.github.io"
 COOKIE_DOMAIN = ".lifting.quest"
 COOKIE_SECURE = "true"
 

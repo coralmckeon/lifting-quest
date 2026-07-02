@@ -29,7 +29,7 @@ copyFileSync(join(dir, 'public/sw.js'),       join(dist, 'sw.js'));
 copyFileSync(join(dir, 'public/manifest.json'), join(dist, 'manifest.json'));
 copyFileSync(join(dir, 'public/icon.svg'),    join(dist, 'icon.svg'));
 
-writeFileSync(join(dist, 'CNAME'),     'app.lifting.quest');
+writeFileSync(join(dist, 'CNAME'),     'lifting.quest');
 writeFileSync(join(dist, '.nojekyll'), '');
 
 console.log(`✓ dist/index.html  (${(html.length / 1024).toFixed(1)} KB)`);
