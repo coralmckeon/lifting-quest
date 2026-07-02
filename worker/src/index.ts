@@ -73,7 +73,6 @@ async function getSessionUserId(c: ReturnType<typeof app.createContext>): Promis
 
 function setSession(c: ReturnType<typeof app.createContext>, token: string): void {
   const reqOrigin = c.req.header('Origin') || '';
-  const workerHost = new URL(c.req.url).hostname;
   const isSamesite = reqOrigin.endsWith(`.${c.env.RP_ID}`) || reqOrigin.endsWith(`://${c.env.RP_ID}`);
   const secure = c.env.COOKIE_SECURE !== 'false';
 

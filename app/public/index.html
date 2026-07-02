@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0e0e12">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -364,6 +364,47 @@
 
     /* Mono class */
     .mono { font-family: var(--mono); font-variant-numeric: tabular-nums }
+
+    /* ── Mobile-first fixes ─────────────────────────────────────────────────── */
+
+    /* Prevent iOS zoom on input focus — all inputs/selects must be >= 16px */
+    input, select, textarea { font-size: 16px !important; touch-action: manipulation }
+    button { touch-action: manipulation }
+
+    /* Standalone PWA: account for status bar and home indicator */
+    @supports (padding: env(safe-area-inset-top)) {
+      .w-hdr { padding-top: calc(env(safe-area-inset-top, 0px) + 12px) }
+      .w-body { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) }
+      .auth-screen, .setup-screen {
+        padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+      }
+    }
+
+    /* Tight phones (<375px) */
+    @media (max-width: 374px) {
+      .set-n { width: 18px; font-size: .65rem }
+      .set-wbtn { min-width: 60px; padding: 6px 4px }
+      .set-w { font-size: .95rem }
+      .set-pct { width: 28px; font-size: .65rem }
+      .set-chk { width: 34px; height: 34px }
+      .top-badge { font-size: .55rem; padding: 1px 4px }
+      .step-val { font-size: 2.4rem; width: 60px }
+      .step-btn { width: 44px; height: 44px; font-size: 1.3rem }
+      .tms-grid { grid-template-columns: 1fr }
+      .epley-row { flex-direction: column }
+      .variant-grid { grid-template-columns: 1fr }
+    }
+
+    /* Standard phones (375–480px) */
+    @media (max-width: 480px) {
+      .screen { padding-left: 0; padding-right: 0 }
+      .setup-screen { padding-left: 12px; padding-right: 12px }
+      .w-body { padding-left: 12px; padding-right: 12px }
+      .w-hdr { padding-left: 12px; padding-right: 12px }
+      .day-nav { padding-left: 12px; padding-right: 12px }
+      .prog-row { flex-wrap: wrap }
+    }
 
     /* ── Reduced motion ──────────────────────────────────────────────────────── */
     @media (prefers-reduced-motion: reduce) {
