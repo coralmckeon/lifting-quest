@@ -72,16 +72,28 @@ async function getSessionUserId(c: ReturnType<typeof app.createContext>): Promis
 }
 
 function setSession(c: ReturnType<typeof app.createContext>, token: string): void {
-  const domain = c.env.COOKIE_DOMAIN || '.lifting.quest';
+  const reqOrigin = c.req.header('Origin') || '';
+  const workerHost = new URL(c.req.url).hostname;
+  const isSamesite = reqOrigin.endsWith(`.${c.env.RP_ID}`) || reqOrigin.endsWith(`://${c.env.RP_ID}`);
   const secure = c.env.COOKIE_SECURE !== 'false';
-  setCookie(c, 'sess', token, {
+
+  const opts: Parameters<typeof setCookie>[3] = {
     httpOnly: true,
     secure,
-    sameSite: 'Lax',
-    domain,
     maxAge: 30 * 24 * 60 * 60,
     path: '/',
-  });
+  };
+
+  if (isSamesite) {
+    // Same TLD: scope cookie to the parent domain, SameSite=Lax
+    opts.domain = c.env.COOKIE_DOMAIN || `.${c.env.RP_ID}`;
+    opts.sameSite = 'Lax';
+  } else {
+    // Cross-origin (workers.dev): no domain constraint, SameSite=None
+    opts.sameSite = 'None';
+  }
+
+  setCookie(c, 'sess', token, opts);
 }
 
 // ── Registration ───────────────────────────────────────────────────────────────
@@ -274,8 +286,13 @@ app.get('/auth/me', async c => {
 app.post('/auth/logout', async c => {
   const token = getCookie(c, 'sess');
   if (token) await c.env.KV.delete(`sess:${token}`);
-  const domain = c.env.COOKIE_DOMAIN || '.lifting.quest';
-  deleteCookie(c, 'sess', { domain, path: '/' });
+  const reqOrigin = c.req.header('Origin') || '';
+  const isSamesite = reqOrigin.endsWith(`.${c.env.RP_ID}`) || reqOrigin.endsWith(`://${c.env.RP_ID}`);
+  if (isSamesite) {
+    deleteCookie(c, 'sess', { domain: c.env.COOKIE_DOMAIN || `.${c.env.RP_ID}`, path: '/' });
+  } else {
+    deleteCookie(c, 'sess', { path: '/' });
+  }
   return c.json({ ok: true });
 });
 
