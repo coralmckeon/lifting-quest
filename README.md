@@ -5,88 +5,88 @@ PWA workout tracker for the nSuns 5/3/1 linear progression program.
 | Layer | Tech | URL |
 |-------|------|-----|
 | Frontend | React + esbuild → GitHub Pages | `app.lifting.quest` |
-| Backend | Cloudflare Worker + Hono | `api.lifting.quest` |
+| Backend | Cloudflare Worker + Hono | `api.lifting.quest` (temp: workers.dev URL) |
 | Auth | Passkeys via SimpleWebAuthn v13 | RP_ID: `lifting.quest` |
 | DB | Cloudflare D1 | `lifting-quest` database |
 | Sessions | Cloudflare KV | challenges + sessions |
 
 ---
 
-## First-time setup
+## Current Status — DNS setup is the only remaining step
 
-### 1. Create Cloudflare D1 database
+Everything is deployed and running:
 
-```bash
-cd worker
-CLOUDFLARE_API_TOKEN=<token> npx wrangler d1 create lifting-quest
-```
+- ✅ **Worker** live at `https://lifting-quest-api.black-silence-26e0.workers.dev`
+- ✅ **D1 database** `lifting-quest` with migrations applied
+- ✅ **KV namespace** for sessions and challenges
+- ✅ **GitHub Pages** built and deployed via CI
+- ✅ **GitHub Actions CI/CD** configured (auto-deploys on push to main)
+- ✅ **GitHub Actions secrets** `CF_API_TOKEN` and `CF_ACCOUNT_ID` set
 
-Copy the `database_id` into `wrangler.toml` under `[[d1_databases]]`.
-
-### 2. Create Cloudflare KV namespace
-
-```bash
-CLOUDFLARE_API_TOKEN=<token> npx wrangler kv namespace create LQ_SESSIONS
-```
-
-Copy the `id` into `wrangler.toml` under `[[kv_namespaces]]`.
-
-### 3. Run D1 migration
-
-```bash
-CLOUDFLARE_API_TOKEN=<token> npx wrangler d1 execute lifting-quest \
-  --remote --file=migrations/0001_init.sql
-```
-
-### 4. Deploy the worker
-
-```bash
-CLOUDFLARE_API_TOKEN=<token> npx wrangler deploy
-```
-
-### 5. Build and deploy the frontend
-
-```bash
-cd ../app
-npm install
-npm run build
-# Push app/dist/ to gh-pages branch
-```
+**Blocked on:** `lifting.quest` domain needs DNS configuration (see below).  
+Until DNS is live, the app redirects to Porkbun's parked page.
 
 ---
 
-## DNS records (in Cloudflare Dashboard)
+## DNS setup (one-time, ~10 min)
+
+### Option A: Move DNS to Cloudflare (recommended — unlocks `api.lifting.quest` route)
+
+1. In Porkbun, change nameservers to Cloudflare's (`e.g. aria.ns.cloudflare.com`)
+2. In Cloudflare, add `lifting.quest` zone
+3. Add DNS records:
 
 | Type  | Name  | Value |
 |-------|-------|-------|
-| CNAME | `app` | `<github-username>.github.io` |
-| Worker route | `api.lifting.quest/*` | Managed by wrangler.toml |
+| CNAME | `app` | `coralmckeon.github.io` (proxied off) |
+| CNAME | `api` | `lifting-quest-api.black-silence-26e0.workers.dev` |
 
-GitHub Pages: set custom domain to `app.lifting.quest` and enable HTTPS.
+4. In `worker/wrangler.toml`, uncomment the routes section:
+   ```toml
+   [[routes]]
+   pattern = "api.lifting.quest/*"
+   zone_name = "lifting.quest"
+   ```
+5. Update `app/src/api.ts` line 1:
+   ```typescript
+   const BASE = 'https://api.lifting.quest';
+   ```
+6. Update `wrangler.toml` vars to remove the workers.dev URL from ALLOWED_ORIGIN / EXPECTED_ORIGIN
+7. Push to main — CI redeploys everything
+
+### Option B: Keep Porkbun DNS
+
+Add these records in Porkbun:
+
+| Type  | Name  | Value |
+|-------|-------|-------|
+| CNAME | `app` | `coralmckeon.github.io` |
+
+The API stays at `https://lifting-quest-api.black-silence-26e0.workers.dev` (already configured in the app).
+
+Then in GitHub repo Settings → Pages → Custom domain: set to `app.lifting.quest`.
 
 ---
 
-## GitHub Actions secrets required
+## GitHub Actions secrets
 
-| Secret | Value |
-|--------|-------|
-| `CF_API_TOKEN` | Cloudflare API token with Worker + D1 + KV edit permissions |
-| `CF_ACCOUNT_ID` | `868abd9a4cf5af9e3c9dd3c983396709` |
+| Secret | Description |
+|--------|-------------|
+| `CF_API_TOKEN` | Cloudflare API token (already set) |
+| `CF_ACCOUNT_ID` | Cloudflare account ID (already set) |
 
 ---
 
 ## Worker env vars (wrangler.toml `[vars]`)
 
-| Key | Default |
+| Key | Current value |
 |-----|---------|
 | `RP_NAME` | `Lifting Quest` |
 | `RP_ID` | `lifting.quest` |
-| `EXPECTED_ORIGIN` | `https://app.lifting.quest` |
-| `ALLOWED_ORIGIN` | `https://app.lifting.quest` |
+| `EXPECTED_ORIGIN` | `https://app.lifting.quest,https://coralmckeon.github.io` |
+| `ALLOWED_ORIGIN` | `https://app.lifting.quest,https://coralmckeon.github.io` |
 | `COOKIE_DOMAIN` | `.lifting.quest` |
 | `COOKIE_SECURE` | `true` |
-
-For local dev, override in `wrangler.toml` `[env.dev]` with `localhost` values.
 
 ---
 
