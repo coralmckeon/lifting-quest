@@ -166,6 +166,10 @@ function SetupScreen({ user, program, onDone }: {
   const [tms, setTms] = useState<Record<string, number>>(() =>
     Object.fromEntries(program.tmLifts.map(l => [l.key, l.defaultLbs]))
   );
+  // Raw input strings so typing isn't clobbered by rounding
+  const [tmInputs, setTmInputs] = useState<Record<string, string>>(() =>
+    Object.fromEntries(program.tmLifts.map(l => [l.key, String(l.defaultLbs)]))
+  );
   const [eW, setEW] = useState('');
   const [eR, setER] = useState('');
   const [eLift, setELift] = useState('');
@@ -173,8 +177,18 @@ function SetupScreen({ user, program, onDone }: {
   const u = U_LABEL[units];
 
   function setTM(key: string, v: string) {
+    setTmInputs(p => ({ ...p, [key]: v }));
     const n = parseFloat(v);
-    if (!isNaN(n) && n > 0) setTms(p => ({ ...p, [key]: roundWeight(n, units) }));
+    if (!isNaN(n) && n > 0) setTms(p => ({ ...p, [key]: n }));
+  }
+
+  function blurTM(key: string) {
+    const n = tms[key];
+    if (n != null && n > 0) {
+      const rounded = roundWeight(n, units);
+      setTms(p => ({ ...p, [key]: rounded }));
+      setTmInputs(p => ({ ...p, [key]: String(rounded) }));
+    }
   }
 
   function applyEpley() {
@@ -182,6 +196,7 @@ function SetupScreen({ user, program, onDone }: {
     if (!eLift || isNaN(w) || isNaN(r) || r < 1 || w <= 0) return;
     const tm = tmFrom1RM(epley1RM(w, r), units);
     setTms(p => ({ ...p, [eLift]: tm }));
+    setTmInputs(p => ({ ...p, [eLift]: String(tm) }));
   }
 
   const epleyTM = eLift && eW && eR
@@ -220,9 +235,10 @@ function SetupScreen({ user, program, onDone }: {
           {program.tmLifts.map(l => (
             <label key={l.key} className="tm-row">
               <span className="tm-label">{l.label}</span>
-              <input className="input input-num mono" type="number" value={tms[l.key] ?? ''}
+              <input className="input input-num mono" type="number" value={tmInputs[l.key] ?? ''}
                 step={units === 'lbs' ? 5 : 2.5} min={0}
-                onChange={e => setTM(l.key, e.target.value)}/>
+                onChange={e => setTM(l.key, e.target.value)}
+                onBlur={() => blurTM(l.key)}/>
             </label>
           ))}
         </div>
@@ -411,6 +427,9 @@ function SettingsSheet({ user, settings, program, onSave, onClose, onLogout }: {
   const [units, setUnits] = useState(settings.units);
   const [variant, setVariant] = useState(settings.variant);
   const [tms, setTms] = useState(settings.tms);
+  const [tmInputs, setTmInputs] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(settings.tms).map(([k, v]) => [k, String(v)]))
+  );
   const u = U_LABEL[units];
 
   return (
@@ -450,11 +469,20 @@ function SettingsSheet({ user, settings, program, onSave, onClose, onLogout }: {
               {program.tmLifts.map(l => (
                 <label key={l.key} className="tm-row">
                   <span className="tm-label">{l.label}</span>
-                  <input className="input input-num mono" type="number" value={tms[l.key] ?? ''}
+                  <input className="input input-num mono" type="number" value={tmInputs[l.key] ?? ''}
                     step={units === 'lbs' ? 5 : 2.5} min={0}
                     onChange={e => {
+                      setTmInputs(p => ({ ...p, [l.key]: e.target.value }));
                       const n = parseFloat(e.target.value);
-                      if (!isNaN(n) && n > 0) setTms(p => ({ ...p, [l.key]: roundWeight(n, units) }));
+                      if (!isNaN(n) && n > 0) setTms(p => ({ ...p, [l.key]: n }));
+                    }}
+                    onBlur={() => {
+                      const n = tms[l.key];
+                      if (n != null && n > 0) {
+                        const rounded = roundWeight(n, units);
+                        setTms(p => ({ ...p, [l.key]: rounded }));
+                        setTmInputs(p => ({ ...p, [l.key]: String(rounded) }));
+                      }
                     }}/>
                 </label>
               ))}
