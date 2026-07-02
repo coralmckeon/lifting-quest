@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e0e12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LiftQuest">
+  <title>Lifting Quest</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    /* ── Reset ─────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    button { font: inherit; cursor: pointer; border: none; background: none }
+    input, select { font: inherit }
+    a { color: inherit; text-decoration: none }
+
+    /* ── Design tokens ──────────────────────────────────────────────────────── */
+    :root {
+      --bg:           #0e0e12;
+      --surface:      #131318;
+      --surface2:     #1a1a24;
+      --border:       #252535;
+      --steel:        #1e2f45;
+      --steel-mid:    #2e4a6a;
+      --steel-bright: #4a7090;
+      --text:         #dde0f0;
+      --muted:        #7880a0;
+      --dim:          #50566a;
+      --orange:       #ff6820;
+      --orange-dim:   rgba(255,104,32,.12);
+      --orange-glow:  rgba(255,104,32,.25);
+      --green:        #2ec97e;
+      --green-dim:    rgba(46,201,126,.10);
+      --red:          #e04444;
+      --mono: 'SF Mono','Cascadia Code','Fira Code','Consolas',monospace;
+      --sans: system-ui,-apple-system,'Segoe UI',sans-serif;
+      --r:  8px;
+      --r2: 12px;
+      --r3: 16px;
+    }
+
+    /* ── Base ───────────────────────────────────────────────────────────────── */
+    html { height: 100%; font-size: 16px; -webkit-text-size-adjust: 100% }
+    body {
+      min-height: 100%; background: var(--bg); color: var(--text);
+      font-family: var(--sans); -webkit-font-smoothing: antialiased;
+      overflow-x: hidden; line-height: 1.5;
+    }
+    #root { min-height: 100dvh; display: flex; flex-direction: column }
+
+    /* ── Screens ────────────────────────────────────────────────────────────── */
+    .screen {
+      flex: 1; display: flex; flex-direction: column;
+      max-width: 480px; margin: 0 auto; width: 100%;
+      padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0);
+    }
+    .center {
+      align-items: center; justify-content: center; gap: 16px; padding: 24px;
+    }
+
+    /* ── Brand ──────────────────────────────────────────────────────────────── */
+    .brand-name {
+      font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em;
+      color: var(--text);
+    }
+    .spinner {
+      width: 28px; height: 28px; border: 2px solid var(--border);
+      border-top-color: var(--steel-bright); border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg) } }
+
+    /* ── Auth screen ────────────────────────────────────────────────────────── */
+    .auth-screen { gap: 12px }
+    .auth-tagline { color: var(--muted); font-size: .875rem }
+    .auth-btns { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; margin-top: 8px }
+    .auth-form { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 320px }
+    .back-btn {
+      display: flex; align-items: center; gap: 4px; color: var(--muted);
+      font-size: .875rem; padding: 4px 0;
+    }
+    .back-btn:hover { color: var(--text) }
+    .err-msg { color: var(--red); font-size: .8rem; text-align: center }
+
+    /* ── Setup screen ───────────────────────────────────────────────────────── */
+    .setup-screen { padding: 0 16px 32px; gap: 16px; overflow-y: auto }
+    .setup-title { font-size: 1.4rem; font-weight: 700; padding-top: 24px }
+    .setup-sub { color: var(--muted); font-size: .875rem }
+    .setup-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r2); padding: 16px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .card-title { font-size: .875rem; font-weight: 600; color: var(--steel-bright); text-transform: uppercase; letter-spacing: .06em }
+    .card-sub { font-size: .8rem; color: var(--muted) }
+    .epley-row { display: flex; gap: 8px; flex-wrap: wrap }
+    .epley-result { font-size: .875rem; color: var(--muted); display: flex; align-items: center; gap: 8px }
+    .epley-result strong { color: var(--text) }
+    .cta-start { margin-top: 8px }
+
+    /* ── Workout screen ─────────────────────────────────────────────────────── */
+    .workout-screen { overflow: hidden; height: 100dvh }
+    .w-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 16px 0; flex-shrink: 0;
+    }
+    .w-hdr-info { display: flex; flex-direction: column; gap: 2px }
+    .w-day-name { font-size: 1.2rem; font-weight: 700; line-height: 1.2 }
+    .w-day-pos { font-size: .75rem; color: var(--muted) }
+
+    /* Day nav */
+    .day-nav {
+      display: flex; gap: 6px; padding: 12px 16px; overflow-x: auto;
+      scrollbar-width: none; flex-shrink: 0;
+    }
+    .day-nav::-webkit-scrollbar { display: none }
+    .day-dot {
+      flex-shrink: 0; height: 36px; padding: 0 10px;
+      border-radius: 18px; font-size: .7rem; font-weight: 600;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--dim); transition: all .15s;
+      display: flex; align-items: center; justify-content: center;
+      letter-spacing: .04em;
+    }
+    .day-dot.dot-done { background: var(--surface2); color: var(--steel-bright); border-color: var(--steel-mid) }
+    .day-dot.dot-cur  {
+      background: var(--orange-dim); border-color: var(--orange);
+      color: var(--orange); font-weight: 700;
+    }
+    .dot-short { pointer-events: none }
+
+    /* Scrollable workout body */
+    .w-body { flex: 1; overflow-y: auto; padding: 8px 16px 0; -webkit-overflow-scrolling: touch }
+
+    /* Blocks */
+    .block { margin-bottom: 20px }
+    .block-hd {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+    }
+    .tier-badge {
+      font-size: .65rem; font-weight: 700; letter-spacing: .08em;
+      padding: 2px 6px; border-radius: 4px;
+    }
+    .t1-badge { background: var(--steel); color: var(--steel-bright) }
+    .t2-badge { background: var(--surface2); color: var(--muted) }
+    .acc-badge { background: var(--surface); color: var(--dim) }
+    .block-lift { font-weight: 600; font-size: .9rem; flex: 1 }
+    .block-tm { font-size: .75rem; color: var(--muted) }
+
+    /* Set rows */
+    .set-row {
+      display: flex; align-items: center; gap: 0;
+      height: 52px; border-radius: var(--r);
+      padding: 0 4px; margin-bottom: 2px;
+      border: 1px solid transparent;
+      transition: background .15s, border-color .15s;
+    }
+    .set-row:hover { background: var(--surface) }
+    .set-done { background: var(--green-dim) !important; opacity: .7 }
+    .set-top {
+      background: var(--orange-dim) !important;
+      border-color: rgba(255,104,32,.2) !important;
+    }
+    .set-top.set-done { background: var(--green-dim) !important; border-color: transparent !important }
+
+    .set-n { width: 22px; font-size: .75rem; color: var(--dim); text-align: center }
+    .set-wbtn {
+      display: flex; align-items: baseline; gap: 2px;
+      padding: 8px 8px 8px 4px; min-width: 72px;
+    }
+    .set-wbtn:hover { color: var(--orange) }
+    .set-w { font-size: 1.1rem; font-weight: 600 }
+    .set-u { font-size: .7rem; color: var(--muted) }
+    .set-x { color: var(--dim); font-size: .85rem; width: 14px; text-align: center }
+    .set-r { width: 32px; font-size: .95rem; font-weight: 600 }
+    .set-pct { font-size: .7rem; color: var(--muted); width: 32px }
+    .top-badge {
+      font-size: .6rem; font-weight: 700; letter-spacing: .1em;
+      color: var(--orange); padding: 2px 5px;
+      border: 1px solid var(--orange); border-radius: 3px;
+      margin-left: auto;
+    }
+    .set-chk {
+      margin-left: auto; width: 40px; height: 40px;
+      border-radius: 50%; border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--green); flex-shrink: 0;
+      transition: all .15s;
+    }
+    .set-chk:hover:not(:disabled) { border-color: var(--steel-bright) }
+    .chk-done { background: var(--green); border-color: var(--green); color: #0e0e12 }
+
+    /* Accessories */
+    .acc-row {
+      display: flex; align-items: center; gap: 12px;
+      height: 48px; border-radius: var(--r); padding: 0 4px;
+      transition: opacity .15s;
+    }
+    .acc-done { opacity: .5 }
+    .acc-name { flex: 1; font-size: .9rem }
+    .acc-scheme { font-size: .8rem; color: var(--muted) }
+
+    /* Finish button */
+    .btn-finish { margin: 20px 0; width: 100% }
+
+    /* ── Overlays ───────────────────────────────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+      display: flex; align-items: flex-end; justify-content: center;
+    }
+
+    /* Rest timer */
+    .rest-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(14,14,18,.92); backdrop-filter: blur(8px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 12px;
+    }
+    .rest-ring { display: block }
+    .rest-label { font-size: .7rem; letter-spacing: .2em; color: var(--muted); text-transform: uppercase }
+
+    /* Modal */
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r2) var(--r2) 0 0;
+      width: 100%; max-width: 480px; padding: 20px;
+      display: flex; flex-direction: column; gap: 16px;
+      animation: slideUp .2s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
+    .modal-hd { display: flex; align-items: center; justify-content: space-between; font-weight: 600 }
+
+    /* Plate modal */
+    .plate-list { display: flex; flex-direction: column; gap: 8px }
+    .plate-entry { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border) }
+    .plate-p { font-size: 1rem; font-weight: 600; width: 60px }
+    .plate-x { color: var(--muted) }
+    .plate-c { color: var(--steel-bright) }
+    .plate-empty { color: var(--muted) }
+    .plate-total { font-size: .8rem; color: var(--muted) }
+
+    /* AMRAP modal */
+    .amrap-modal { align-items: center }
+    .amrap-label { font-weight: 600 }
+    .amrap-sub { font-size: .875rem; color: var(--muted) }
+    .stepper { display: flex; align-items: center; gap: 24px }
+    .step-btn {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: var(--surface2); border: 1px solid var(--border);
+      font-size: 1.5rem; color: var(--text); display: flex; align-items: center; justify-content: center;
+    }
+    .step-btn:hover { border-color: var(--steel-bright) }
+    .step-val { font-size: 3rem; font-weight: 700; width: 80px; text-align: center }
+
+    /* Progression */
+    .prog-modal { align-items: stretch }
+    .prog-title { font-size: 1.2rem; font-weight: 700; text-align: center }
+    .prog-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .prog-lift { flex: 1; font-weight: 600 }
+    .prog-reps { font-size: .8rem; color: var(--muted); width: 52px }
+    .prog-add { font-size: .9rem; font-weight: 700; width: 56px; text-align: right }
+    .prog-add.up { color: var(--green) }
+    .prog-add.hold { color: var(--muted) }
+    .prog-tm { font-size: .8rem; color: var(--muted) }
+
+    /* ── Settings sheet ─────────────────────────────────────────────────────── */
+    .sheet-bg { align-items: flex-end }
+    .sheet {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r2) var(--r2) 0 0;
+      width: 100%; max-width: 480px;
+      max-height: 90dvh; overflow-y: auto;
+      animation: slideUp .2s ease;
+    }
+    .sheet-drag {
+      width: 40px; height: 4px; border-radius: 2px;
+      background: var(--border); margin: 12px auto 4px;
+    }
+    .sheet-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 20px 16px;
+    }
+    .sheet-hd h2 { font-size: 1.1rem; font-weight: 700 }
+    .sheet-body { padding: 0 20px 32px; display: flex; flex-direction: column; gap: 20px }
+    .sheet-user { font-weight: 600; color: var(--steel-bright) }
+    .s-row { display: flex; align-items: center; justify-content: space-between; gap: 12px }
+    .s-row.col { flex-direction: column; align-items: flex-start }
+    .s-label { font-size: .875rem; color: var(--muted) }
+
+    /* ── Common components ──────────────────────────────────────────────────── */
+
+    /* Segmented control */
+    .seg { display: flex; gap: 0; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden }
+    .seg-btn {
+      flex: 1; padding: 8px 16px; font-size: .8rem; font-weight: 600;
+      letter-spacing: .05em; color: var(--muted);
+      border-right: 1px solid var(--border);
+      transition: all .15s;
+    }
+    .seg-btn:last-child { border-right: none }
+    .seg-btn.on { background: var(--steel); color: var(--text) }
+
+    /* Variant grid */
+    .variant-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+    .variant-btn {
+      padding: 10px; font-size: .8rem; font-weight: 600;
+      border: 1px solid var(--border); border-radius: var(--r);
+      color: var(--muted); background: var(--surface); transition: all .15s;
+    }
+    .variant-btn.on { border-color: var(--steel-bright); color: var(--text); background: var(--steel) }
+
+    /* TMs */
+    .tms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+    .tm-row { display: flex; flex-direction: column; gap: 4px }
+    .tm-label { font-size: .75rem; color: var(--muted) }
+
+    /* Buttons */
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 20px; border-radius: var(--r); font-weight: 600;
+      font-size: .9rem; transition: all .15s; white-space: nowrap;
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed }
+    .btn-primary  { background: var(--orange); color: #0e0e12 }
+    .btn-primary:hover:not(:disabled) { filter: brightness(1.1) }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border) }
+    .btn-secondary:hover:not(:disabled) { border-color: var(--steel-bright) }
+    .btn-ghost  { background: none; color: var(--muted) }
+    .btn-ghost:hover { color: var(--text) }
+    .btn-ghost.danger { color: var(--red) }
+    .btn-ghost.danger:hover { color: #ff7777 }
+    .btn-sm { padding: 6px 12px; font-size: .8rem }
+    .btn-lg { padding: 14px 20px; font-size: 1rem }
+
+    /* Inputs */
+    .input {
+      width: 100%; padding: 10px 12px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r); color: var(--text);
+      font-size: .9rem; outline: none;
+      transition: border-color .15s;
+    }
+    .input:focus { border-color: var(--steel-bright) }
+    .input-num { text-align: right }
+    .input-sel { cursor: pointer }
+    .input-sel option { background: var(--surface2) }
+
+    .field { display: flex; flex-direction: column; gap: 6px }
+    .field-label { font-size: .8rem; color: var(--muted) }
+
+    /* Icon button */
+    .icon-btn {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); transition: all .15s;
+    }
+    .icon-btn:hover { background: var(--surface2); color: var(--text) }
+
+    /* Mono class */
+    .mono { font-family: var(--mono); font-variant-numeric: tabular-nums }
+
+    /* ── Reduced motion ──────────────────────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
+  <!-- BUNDLE -->
+</body>
+</html>

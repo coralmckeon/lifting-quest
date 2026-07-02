@@ -1,0 +1,28 @@
+name = "lifting-quest-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lifting-quest"
+database_id = "f94c352d-ef24-441e-a490-2f36df58a323"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "ef12d5f72ceb416d9a213d650ebd2746"
+
+[vars]
+RP_NAME = "Lifting Quest"
+RP_ID = "lifting.quest"
+EXPECTED_ORIGIN = "https://app.lifting.quest"
+ALLOWED_ORIGIN = "https://app.lifting.quest"
+COOKIE_DOMAIN = ".lifting.quest"
+COOKIE_SECURE = "true"
+
+# Route active once lifting.quest zone is added to Cloudflare:
+# [[routes]]
+# pattern = "api.lifting.quest/*"
+# zone_name = "lifting.quest"
+
+workers_dev = true
