@@ -192,14 +192,25 @@
     .set-chk:hover:not(:disabled) { border-color: var(--steel-bright) }
     .chk-done { background: var(--green); border-color: var(--green); color: #0e0e12 }
 
-    /* Accessories */
-    .acc-row {
-      display: flex; align-items: center; gap: 12px;
-      height: 48px; border-radius: var(--r); padding: 0 4px;
-      transition: opacity .15s;
+    /* Accessories — per-set */
+    .acc-group { margin-bottom: 4px }
+    .acc-hd {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 4px 4px; transition: opacity .15s;
     }
-    .acc-done { opacity: .5 }
-    .acc-name { flex: 1; font-size: .9rem }
+    .acc-all-done { opacity: .5 }
+    .acc-name { flex: 1; font-size: .9rem; font-weight: 500 }
+    .acc-progress { font-size: .75rem; color: var(--muted) }
+    .acc-set-row {
+      display: flex; align-items: center; gap: 0;
+      height: 44px; border-radius: var(--r); padding: 0 4px;
+      margin-bottom: 1px; transition: background .15s, opacity .15s;
+    }
+    .acc-set-row:hover { background: var(--surface) }
+    .acc-set-row.set-done { background: var(--green-dim); opacity: .6 }
+    .acc-set-n { width: 22px; font-size: .75rem; color: var(--dim); text-align: center }
+    .acc-set-label { flex: 1; font-size: .85rem; color: var(--text); padding-left: 4px }
+    .acc-set-reps { font-size: .8rem; color: var(--muted); margin-right: 8px }
     .acc-scheme { font-size: .8rem; color: var(--muted) }
 
     /* Finish button */
@@ -289,6 +300,35 @@
     .sheet-hd h2 { font-size: 1.1rem; font-weight: 700 }
     .sheet-body { padding: 0 20px 32px; display: flex; flex-direction: column; gap: 20px }
     .sheet-user { font-weight: 600; color: var(--steel-bright) }
+
+    /* Header actions */
+    .w-hdr-actions { display: flex; align-items: center; gap: 2px }
+    .quit-icon { color: var(--red) }
+    .quit-icon:hover { background: rgba(224,68,68,.1); color: #ff7777 }
+
+    /* History sheet */
+    .hist-empty { color: var(--muted); font-size: .875rem; text-align: center; padding: 24px 0 }
+    .hist-entry {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+    }
+    .hist-entry:last-child { border-bottom: none }
+    .hist-top { display: flex; align-items: center; justify-content: space-between }
+    .hist-date { font-size: .75rem; color: var(--muted); font-weight: 600 }
+    .hist-dur { font-size: .75rem; color: var(--dim) }
+    .hist-day { font-weight: 600; font-size: .95rem }
+    .hist-stats { font-size: .8rem; color: var(--muted) }
+    .hist-sets { color: var(--muted) }
+    .hist-tms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px }
+    .hist-tm { font-size: .75rem; font-family: var(--mono); padding: 2px 6px; border-radius: 4px }
+    .hist-tm.tm-up { background: var(--green-dim); color: var(--green) }
+    .hist-tm.tm-hold { background: var(--surface2); color: var(--muted) }
+
+    /* Quit confirmation */
+    .quit-modal { align-items: stretch }
+    .quit-msg { font-size: .875rem; color: var(--muted); line-height: 1.5 }
+    .quit-btns { display: flex; gap: 12px }
+    .quit-btns .btn { flex: 1 }
     .s-row { display: flex; align-items: center; justify-content: space-between; gap: 12px }
     .s-row.col { flex-direction: column; align-items: flex-start }
     .s-label { font-size: .875rem; color: var(--muted) }

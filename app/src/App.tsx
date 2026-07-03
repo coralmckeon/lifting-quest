@@ -13,7 +13,7 @@ interface Settings {
   variant: string;
   tms: Record<string, number>;
 }
-interface AppState { settings: Settings | null; currentDayIndex: number }
+interface AppState { settings: Settings | null; currentDayIndex: number; history?: WorkoutEntry[] }
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,18 @@ const ChevL = () => (
   </svg>
 );
 
+const Clock = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  </svg>
+);
+
+const Quit = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+);
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const U_LABEL: Record<Units, string> = { lbs: 'lb', kg: 'kg' };
@@ -67,6 +79,41 @@ function loadCache(): AppState | null {
 const saveCache = (s: AppState) => {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(s)); } catch {}
 };
+
+// ── Workout-in-progress persistence ──────────────────────────────────────────
+
+const WIP_KEY = 'lq_wip_v1';
+
+interface WorkoutProgress {
+  dayIndex: number;
+  done: string[];
+  amrapReps: Record<string, number>;
+  startedAt: number;
+}
+
+function loadWip(): WorkoutProgress | null {
+  try { return JSON.parse(localStorage.getItem(WIP_KEY) ?? 'null'); } catch { return null; }
+}
+function saveWipData(p: WorkoutProgress | null) {
+  if (p) localStorage.setItem(WIP_KEY, JSON.stringify(p));
+  else localStorage.removeItem(WIP_KEY);
+}
+
+// ── History ──────────────────────────────────────────────────────────────────
+
+interface WorkoutEntry {
+  date: string;
+  dayId: string;
+  dayName: string;
+  durationMin: number;
+  setsCompleted: number;
+  totalSets: number;
+  accSetsCompleted: number;
+  accTotalSets: number;
+  amrapReps: Record<string, number>;
+  tmsBefore: Record<string, number>;
+  tmsAfter: Record<string, number>;
+}
 
 // ── Loading screen ─────────────────────────────────────────────────────────────
 
@@ -500,6 +547,93 @@ function SettingsSheet({ user, settings, program, onSave, onClose, onLogout }: {
   );
 }
 
+// ── History sheet ─────────────────────────────────────────────────────────
+
+function HistorySheet({ history, units, onClose }: {
+  history: WorkoutEntry[]; units: Units; onClose: () => void;
+}) {
+  const u = U_LABEL[units];
+  const sorted = [...history].reverse(); // most recent first
+
+  function fmtDate(iso: string) {
+    const d = new Date(iso);
+    const today = new Date();
+    const yest = new Date(); yest.setDate(yest.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yest.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  return (
+    <div className="overlay sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e => e.stopPropagation()}>
+        <div className="sheet-drag"/>
+        <div className="sheet-hd">
+          <h2>History</h2>
+          <button className="icon-btn" onClick={onClose}><X/></button>
+        </div>
+        <div className="sheet-body">
+          {sorted.length === 0 ? (
+            <p className="hist-empty">No workouts yet. Finish a workout to see it here.</p>
+          ) : sorted.map((entry, i) => {
+            const tmChanges = Object.keys(entry.tmsAfter).filter(
+              k => entry.tmsAfter[k] !== entry.tmsBefore[k]
+            );
+            return (
+              <div key={i} className="hist-entry">
+                <div className="hist-top">
+                  <span className="hist-date">{fmtDate(entry.date)}</span>
+                  <span className="hist-dur">{entry.durationMin}m</span>
+                </div>
+                <span className="hist-day">{entry.dayName}</span>
+                <div className="hist-stats">
+                  <span className="hist-sets">
+                    {entry.setsCompleted}/{entry.totalSets} sets
+                    {entry.accTotalSets > 0 && ` · ${entry.accSetsCompleted}/${entry.accTotalSets} acc`}
+                  </span>
+                </div>
+                {tmChanges.length > 0 && (
+                  <div className="hist-tms">
+                    {tmChanges.map(k => {
+                      const diff = entry.tmsAfter[k] - entry.tmsBefore[k];
+                      return (
+                        <span key={k} className={`hist-tm ${diff > 0 ? 'tm-up' : 'tm-hold'}`}>
+                          {k}: {entry.tmsBefore[k]}→{entry.tmsAfter[k]}{u}
+                          {diff > 0 && ` (+${diff})`}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Quit confirmation ─────────────────────────────────────────────────────
+
+function QuitConfirm({ onQuit, onCancel }: { onQuit: () => void; onCancel: () => void }) {
+  return (
+    <div className="overlay" onClick={onCancel}>
+      <div className="modal quit-modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-hd">
+          <span>Quit Workout?</span>
+          <button className="icon-btn" onClick={onCancel}><X/></button>
+        </div>
+        <p className="quit-msg">Progress for this workout will be lost. Your training maxes won't change.</p>
+        <div className="quit-btns">
+          <button className="btn btn-secondary" onClick={onCancel}>Keep Going</button>
+          <button className="btn btn-ghost danger" onClick={onQuit}>Quit</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Workout screen ─────────────────────────────────────────────────────────────
 
 function WorkoutScreen({ user, appState, onChange, onLogout }: {
@@ -524,12 +658,37 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
   const [showProg, setShowProg] = useState(false);
   const [nextState, setNextState] = useState<AppState | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showQuit, setShowQuit] = useState(false);
+  const [startedAt, setStartedAt] = useState<number>(Date.now);
 
-  // Reset on day change
+  // Restore work-in-progress on mount / day change
   useEffect(() => {
-    setDone(new Set()); setAmrapReps({}); setPendingAmrap(null);
+    const wip = loadWip();
+    if (wip && wip.dayIndex === appState.currentDayIndex) {
+      setDone(new Set(wip.done));
+      setAmrapReps(wip.amrapReps);
+      setStartedAt(wip.startedAt);
+    } else {
+      setDone(new Set());
+      setAmrapReps({});
+      setStartedAt(Date.now());
+    }
+    setPendingAmrap(null);
     setRest(null); setShowProg(false); setNextState(null);
-  }, [dayIdx, variant]);
+  }, [appState.currentDayIndex, variant]);
+
+  // Auto-save progress whenever sets are completed
+  useEffect(() => {
+    if (done.size > 0) {
+      saveWipData({
+        dayIndex: appState.currentDayIndex,
+        done: [...done],
+        amrapReps,
+        startedAt,
+      });
+    }
+  }, [done, amrapReps]);
 
   // Countdown
   useEffect(() => {
@@ -564,6 +723,10 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
     setRest({ rem: isT1 ? 180 : 120, tot: isT1 ? 180 : 120 });
   }
 
+  // Compute accessory totals
+  const accTotalSets = day.accessories.reduce((sum, acc) => sum + acc.sets, 0);
+  const accDoneSets = [...done].filter(k => k.startsWith('acc-')).length;
+
   function finish() {
     const pLift = program.dayProgressionLift(day.id);
     const newTMs = { ...tms };
@@ -571,13 +734,38 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
       const reps = amrapReps[topKey] ?? 0;
       newTMs[pLift] = (tms[pLift] ?? 0) + program.progression(reps, units);
     }
+    const durationMin = Math.round((Date.now() - startedAt) / 60000);
+    const entry: WorkoutEntry = {
+      date: new Date().toISOString(),
+      dayId: day.id,
+      dayName: day.name,
+      durationMin,
+      setsCompleted: doneReq,
+      totalSets: totalReq,
+      accSetsCompleted: accDoneSets,
+      accTotalSets,
+      amrapReps: { ...amrapReps },
+      tmsBefore: { ...tms },
+      tmsAfter: { ...newTMs },
+    };
+    const prevHistory = appState.history ?? [];
     const next: AppState = {
       ...appState,
       settings: { ...settings, tms: newTMs },
       currentDayIndex: appState.currentDayIndex + 1,
+      history: [...prevHistory, entry].slice(-50), // keep last 50
     };
+    saveWipData(null); // clear WIP
     setNextState(next);
     setShowProg(true);
+  }
+
+  function quitWorkout() {
+    setDone(new Set());
+    setAmrapReps({});
+    setStartedAt(Date.now());
+    saveWipData(null);
+    setShowQuit(false);
   }
 
   function buildProgRows() {
@@ -619,9 +807,15 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
       <header className="w-hdr">
         <div className="w-hdr-info">
           <span className="w-day-name">{day.name}</span>
-          <span className="w-day-pos">{dayIdx + 1}/{days.length}</span>
+          <span className="w-day-pos">{dayIdx + 1}/{days.length}{done.size > 0 ? ` · ${doneReq}/${totalReq}` : ''}</span>
         </div>
-        <button className="icon-btn" onClick={() => setShowSettings(true)}><Gear/></button>
+        <div className="w-hdr-actions">
+          {done.size > 0 && (
+            <button className="icon-btn quit-icon" onClick={() => setShowQuit(true)} title="Quit workout"><Quit/></button>
+          )}
+          <button className="icon-btn" onClick={() => setShowHistory(true)} title="History"><Clock/></button>
+          <button className="icon-btn" onClick={() => setShowSettings(true)}><Gear/></button>
+        </div>
       </header>
 
       {/* Day nav */}
@@ -676,18 +870,34 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
             <div className="block-hd">
               <span className="tier-badge acc-badge">ACC</span>
               <span className="block-lift">Accessories</span>
+              {accTotalSets > 0 && (
+                <span className="block-tm mono">{accDoneSets}/{accTotalSets}</span>
+              )}
             </div>
-            {day.accessories.map((acc, i) => {
-              const key = `acc-${i}`;
-              const isDone = done.has(key);
+            {day.accessories.map((acc, ai) => {
+              const setsDone = Array.from({length: acc.sets}, (_, si) => done.has(`acc-${ai}-${si}`)).filter(Boolean).length;
+              const allAccDone = setsDone === acc.sets;
               return (
-                <div key={key} className={`acc-row ${isDone ? 'acc-done' : ''}`}>
-                  <button className={`set-chk ${isDone ? 'chk-done' : ''}`} disabled={isDone}
-                    onClick={() => { setDone(p => new Set([...p, key])); setRest({ rem: 90, tot: 90 }); }}>
-                    {isDone && <Check/>}
-                  </button>
-                  <span className="acc-name">{acc.name}</span>
-                  <span className="mono acc-scheme">{acc.sets}×{acc.reps}</span>
+                <div key={`acc-${ai}`} className="acc-group">
+                  <div className={`acc-hd ${allAccDone ? 'acc-all-done' : ''}`}>
+                    <span className="acc-name">{acc.name}</span>
+                    <span className="mono acc-progress">{setsDone}/{acc.sets} × {acc.reps}</span>
+                  </div>
+                  {Array.from({length: acc.sets}, (_, si) => {
+                    const key = `acc-${ai}-${si}`;
+                    const isDone = done.has(key);
+                    return (
+                      <div key={key} className={`acc-set-row ${isDone ? 'set-done' : ''}`}>
+                        <span className="acc-set-n mono">{si + 1}</span>
+                        <span className="acc-set-label">Set {si + 1}</span>
+                        <span className="mono acc-set-reps">×{acc.reps}</span>
+                        <button className={`set-chk ${isDone ? 'chk-done' : ''}`} disabled={isDone}
+                          onClick={() => { setDone(p => new Set([...p, key])); setRest({ rem: 60, tot: 60 }); }}>
+                          {isDone && <Check/>}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -722,6 +932,15 @@ function WorkoutScreen({ user, appState, onChange, onLogout }: {
           onSave={s => onChange({ ...appState, settings: s })}
           onClose={() => setShowSettings(false)}
           onLogout={onLogout}/>
+      )}
+
+      {showHistory && (
+        <HistorySheet history={appState.history ?? []} units={units}
+          onClose={() => setShowHistory(false)}/>
+      )}
+
+      {showQuit && (
+        <QuitConfirm onQuit={quitWorkout} onCancel={() => setShowQuit(false)}/>
       )}
     </div>
   );
